@@ -27,10 +27,13 @@ async function initPostgres() {
   }
 
   try {
+    const isSupabase = config.DATABASE_URL.includes('supabase.co') || config.DATABASE_URL.includes('supabase.com') || config.DATABASE_URL.includes('sslmode=');
+
     pool = new Pool({
       connectionString: config.DATABASE_URL,
-      connectionTimeoutMillis: 4000,
+      connectionTimeoutMillis: 10000,
       idleTimeoutMillis: 30000,
+      ssl: isSupabase ? { rejectUnauthorized: false } : undefined,
     });
 
     const client = await pool.connect();

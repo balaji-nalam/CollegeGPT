@@ -40,7 +40,7 @@ const config = {
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'CollegeAdminSecure2026!',
   
   // Storage Provider
-  STORAGE_PROVIDER: process.env.STORAGE_PROVIDER || 'local',
+  STORAGE_PROVIDER: process.env.STORAGE_PROVIDER || (process.env.SUPABASE_URL && process.env.SUPABASE_KEY ? 'supabase' : 'local'),
   UPLOAD_DIR: process.env.UPLOAD_DIR || path.resolve(__dirname, '../../uploads/documents'),
   
   // Supabase Storage Configuration (Production Document Storage)
