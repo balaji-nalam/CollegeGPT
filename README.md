@@ -117,9 +117,9 @@ No screenshot files are fabricated or referenced here because none were found in
 
 ## 8. Live Demo
 
-Frontend: [TO BE DEPLOYED]
+Frontend: https://college-gpt-seven.vercel.app/
 
-Backend: [TO BE DEPLOYED]
+Backend: https://collegegpt-11xi.onrender.com
 
 ## 9. Backend
 
@@ -266,6 +266,146 @@ project AI/
 - Conversation access is checked against the authenticated user.
 - Prompt-injection and unsupported-question behavior were tested through the live API.
 - Credentials and access tokens are not committed to the repository.
+
+## Instructor / Admin Demo
+
+CollegeGPT includes an administrator account for demonstrating the complete document-management and RAG workflow.
+
+### Admin Capabilities
+
+The instructor or administrator can:
+
+- Log in securely using administrator authentication.
+- Access the admin document management area.
+- Upload college knowledge documents such as PDFs.
+- Process documents for the RAG knowledge base.
+- Manage the documents used by CollegeGPT.
+- Ask questions through the CollegeGPT chat interface.
+- Verify that answers are grounded in uploaded college documents.
+- View source and page citations associated with retrieved information.
+- Test questions outside the knowledge base and verify that CollegeGPT refuses to invent an answer.
+- Test prompt-injection attempts and verify that sensitive credentials and system secrets are not disclosed.
+
+### How the System Works
+
+1. The administrator logs in through the frontend.
+2. Authentication is handled by the backend using JWT and bcrypt.
+3. The administrator uploads a college document.
+4. The backend processes the document and extracts its content.
+5. The document is divided into chunks.
+6. Gemini generates embeddings for the document chunks.
+7. The embeddings are stored in PostgreSQL with pgvector.
+8. When a student asks a question, the backend generates an embedding for the query.
+9. pgvector performs semantic similarity search against the stored document chunks.
+10. Relevant chunks are retrieved and passed as context to the AI model.
+11. Gemini generates a grounded response using the retrieved context.
+12. CollegeGPT returns source and page citations so the user can verify the answer.
+13. If relevant information cannot be found in the knowledge base, CollegeGPT returns a refusal instead of making up an answer.
+
+### RAG Architecture
+
+```text
+User
+      |
+      v
+CollegeGPT Frontend
+      |
+      v
+Backend API
+      |
+      +--> Authentication (JWT + bcrypt)
+      |
+      +--> Query Embedding (Gemini)
+      |
+      +--> PostgreSQL + pgvector
+      |        |
+      |        +--> Semantic Retrieval
+      |
+      +--> Retrieved Context
+                               |
+                               v
+                   Gemini LLM
+                               |
+                               v
+       Grounded Answer
+                               |
+                               v
+             Source Citations
+```
+
+### What the Instructor Can Demonstrate
+
+1. Open the live CollegeGPT application.
+2. Log in with the provided administrator credentials.
+3. Open the admin document management page.
+4. Upload a knowledge-base PDF.
+5. Allow the document to be processed and indexed.
+6. Open the chat.
+7. Ask a question whose answer exists in the uploaded document.
+8. Verify the grounded response and source citation.
+9. Ask a question unrelated to the uploaded knowledge base.
+10. Verify that CollegeGPT responds that the information is unavailable rather than hallucinating.
+11. Test a prompt-injection question and verify that credentials and secrets are not disclosed.
+
+### Demo Credentials
+
+Admin Email: `admin@college.edu`
+
+Admin Password: Provided separately to the instructor.
+
+> For security, the administrator password is intentionally not stored in this public GitHub repository. The instructor can receive the demo password separately.
+
+### Project Implementation
+
+#### Frontend
+
+- Next.js / React
+- Authentication UI
+- Dashboard
+- Chat interface
+- Admin document management
+- Settings
+- Responsive UI
+
+#### Backend
+
+- Node.js
+- Express.js
+- JWT authentication
+- bcrypt password hashing
+- REST API
+- Document processing
+- RAG pipeline
+- Vector retrieval
+
+#### AI
+
+- Google Gemini
+- Text embeddings
+- LLM-based grounded answer generation
+
+#### Data
+
+- Supabase PostgreSQL
+- pgvector
+- Supabase Storage
+
+#### Deployment
+
+- GitHub
+- Vercel frontend
+- Render backend
+- Supabase database and storage
+
+### Live Deployment
+
+Frontend: https://college-gpt-seven.vercel.app/
+
+Backend: https://collegegpt-11xi.onrender.com
+
+Health: https://collegegpt-11xi.onrender.com/api/health
+
+GitHub: https://github.com/balaji-nalam/CollegeGPT
 
 ## 15. Future Improvements
 
