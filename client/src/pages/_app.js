@@ -1,18 +1,10 @@
 import '../styles/globals.css';
 import Head from 'next/head';
 import { useEffect } from 'react';
-import { getSocket } from '../services/socket';
 import { useAuthStore } from '../store/authStore';
 
 export default function App({ Component, pageProps }) {
   const { token, fetchProfile } = useAuthStore();
-
-  useEffect(() => {
-    // Initialize socket connection on client mount
-    if (typeof window !== 'undefined') {
-      getSocket();
-    }
-  }, []);
 
   useEffect(() => {
     if (token) {
@@ -23,10 +15,14 @@ export default function App({ Component, pageProps }) {
   return (
     <>
       <Head>
-        <title>Agentflow_AI | Agentic AI Operations Automation Platform</title>
-        <meta name="description" content="Build, execute, and monitor agentic automation workflows with multi-agent orchestration." />
+        <title>CollegeGPT | RAG-Based College Information Assistant</title>
+        <meta name="description" content="CollegeGPT - Official AI-Powered Academic Information Assistant with pgvector Grounded RAG." />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
+        <meta name="theme-color" content="#080c14" />
+        <link rel="icon" href="/collegegpt-icon.svg" type="image/svg+xml" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
       </Head>
       <Component {...pageProps} />
     </>

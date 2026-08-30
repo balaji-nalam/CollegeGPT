@@ -4,18 +4,21 @@ import {
   MessageSquare,
   FileText,
   Settings,
-  Bot,
-  Sparkles,
   BookOpen,
+  LayoutDashboard,
+  GraduationCap,
+  Plus,
+  X,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
-export default function Sidebar() {
+export default function Sidebar({ mobileOpen = false, onClose = () => {} }) {
   const router = useRouter();
   const { user } = useAuthStore();
 
   const navigation = [
     { name: 'Academic Chat', href: '/', icon: MessageSquare },
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   ];
 
   if (user?.role === 'admin') {
@@ -29,9 +32,19 @@ export default function Sidebar() {
 
   navigation.push({ name: 'Settings', href: '/settings', icon: Settings });
 
+  const go = (href) => { router.push(href); onClose(); };
+
   return (
-    <aside className="w-64 flex-shrink-0 border-r border-slate-800/80 bg-[#090d16] flex flex-col justify-between p-4">
+    <>
+      {mobileOpen && <button onClick={onClose} className="fixed inset-0 z-40 bg-slate-950/70 lg:hidden" aria-label="Close navigation" />}
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-shrink-0 flex-col justify-between border-r border-slate-800/80 bg-[#090d16]/95 p-4 shadow-2xl backdrop-blur-xl transition-transform lg:static lg:w-64 lg:translate-x-0 lg:shadow-none ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="space-y-6">
+        <div className="flex items-center justify-between lg:hidden">
+          <span className="font-semibold text-white">Navigation</span><button onClick={onClose} className="p-2 text-slate-400"><X className="h-5 w-5" /></button>
+        </div>
+        <button onClick={() => go('/')} className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-500">
+          <Plus className="h-4 w-4" /> New Consultation
+        </button>
         <nav className="space-y-1">
           <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2">
             CollegeGPT Portal
@@ -45,7 +58,7 @@ export default function Sidebar() {
             return (
               <button
                 key={item.name}
-                onClick={() => router.push(item.href)}
+                onClick={() => go(item.href)}
                 className={`group flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                   isActive
                     ? 'bg-indigo-600/15 text-indigo-400 border border-indigo-500/30 shadow-sm shadow-indigo-500/10'
@@ -75,7 +88,7 @@ export default function Sidebar() {
       <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-3.5">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-            <BookOpen className="h-4 w-4" />
+            <GraduationCap className="h-4 w-4" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-slate-200">Grounded RAG Engine</p>
@@ -85,7 +98,9 @@ export default function Sidebar() {
             </p>
           </div>
         </div>
+        <button onClick={() => go('/settings')} className="mt-3 flex w-full items-center gap-2 border-t border-slate-800 pt-3 text-xs text-slate-400 transition hover:text-white"><Settings className="h-3.5 w-3.5" /> Account & settings</button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

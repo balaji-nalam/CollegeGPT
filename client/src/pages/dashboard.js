@@ -1,131 +1,245 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
+import Head from 'next/head';
 import AppShell from '../components/AppShell/AppShell';
 import ProtectedRoute from '../components/ProtectedRoute/ProtectedRoute';
-import MetricGrid from '../components/MetricGrid/MetricGrid';
-import { Sparkles, GitBranch, PlayCircle, ArrowRight, Bot, Activity, Plus } from 'lucide-react';
+import {
+  MessageSquare,
+  FileText,
+  Sparkles,
+  ArrowRight,
+  BookOpen,
+  CheckCircle2,
+  Database,
+  Building,
+  GraduationCap,
+  Clock,
+  Layers,
+} from 'lucide-react';
 import api from '../services/api';
+import { useAuthStore } from '../store/authStore';
 
 export default function Dashboard() {
   const router = useRouter();
-  const [stats, setStats] = useState({
-    totalWorkflows: 0,
-    activeWorkflows: 0,
-    totalExecutions: 0,
-    runningExecutions: 0,
-    successRate: 100,
-    failedExecutions: 0,
-    avgDurationMs: 850,
-  });
-  const [recentWorkflows, setRecentWorkflows] = useState([]);
-  const [recentExecutions, setRecentExecutions] = useState([]);
+  const { user } = useAuthStore();
+  const [documents, setDocuments] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [healthInfo, setHealthInfo] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadDashboard() {
+    async function loadDashboardData() {
       try {
         setLoading(true);
-        const [dashRes, wfRes, execRes] = await Promise.allSettled([
-          api.get('/workflows/dashboard'),
-          api.get('/workflows?limit=5'),
-          api.get('/executions?limit=5'),
+        const [docsRes, convsRes, healthRes] = await Promise.allSettled([
+          api.get('/documents'),
+          api.get('/conversations'),
+          api.get('/health'),
         ]);
 
-        if (dashRes.status === 'fulfilled' && dashRes.value.data?.data) {
-          setStats(dashRes.value.data.data);
+        if (docsRes.status === 'fulfilled' && docsRes.value.data?.data) {
+          const docData = docsRes.value.data.data;
+          if (Array.isArray(docData)) {
+            setDocuments(docData);
+          } else if (Array.isArray(docData.documents)) {
+            setDocuments(docData.documents);
+          } else {
+            setDocuments([]);
+          }
         }
-        if (wfRes.status === 'fulfilled' && wfRes.value.data?.data?.workflows) {
-          setRecentWorkflows(wfRes.value.data.data.workflows);
+
+        if (convsRes.status === 'fulfilled' && convsRes.value.data?.data) {
+          const convData = convsRes.value.data.data;
+          if (Array.isArray(convData)) {
+            setConversations(convData);
+          } else if (Array.isArray(convData.conversations)) {
+            setConversations(convData.conversations);
+          } else {
+            setConversations([]);
+          }
         }
-        if (execRes.status === 'fulfilled' && execRes.value.data?.data?.executions) {
-          setRecentExecutions(execRes.value.data.data.executions);
+
+        if (healthRes.status === 'fulfilled' && healthRes.value.data) {
+          setHealthInfo(healthRes.value.data);
         }
       } catch (err) {
-        console.error('Failed to load dashboard', err);
+        console.error('Failed to load dashboard metrics', err);
       } finally {
         setLoading(false);
       }
     }
 
-    loadDashboard();
+    loadDashboardData();
   }, []);
+
+  const safeDocs = Array.isArray(documents) ? documents : [];
+  const safeConvs = Array.isArray(conversations) ? conversations : [];
+
+  const indexedDocs = safeDocs.filter((d) => d && d.status === 'INDEXED');
+  const totalChunks = indexedDocs.reduce((acc, d) => acc + (d.total_chunks || 0), 0);
+
+  const quickPrompts = [
+    'What is the minimum attendance requirement for semester exams?',
+    'What are the passing CGPA requirements for graduation?',
+    'How do I apply for a medical leave or condonation?',
+    'What are the course registration deadlines and prerequisites?',
+  ];
 
   return (
     <ProtectedRoute>
+      <Head>
+        <title>Dashboard | CollegeGPT</title>
+      </Head>
+
       <AppShell>
         <div className="space-y-6">
           {/* Top Banner / Welcome */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white">Operations Console</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold tracking-tight text-white">
+                  Welcome back, {user?.name || 'Student'}
+                </h1>
+                <span className="rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-xs font-semibold text-indigo-400 border border-indigo-500/20 capitalize">
+                  {user?.role || 'Student'} • {user?.department || 'General'}
+                </span>
+              </div>
               <p className="mt-1 text-sm text-slate-400">
-                Multi-agent swarm telemetry, workflow orchestration, and active execution status.
+                Official College Knowledge Base & AI-Powered Academic Assistant.
               </p>
             </div>
+
             <div className="flex gap-3">
               <button
-                onClick={() => router.push('/workflows/builder')}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/20 hover:opacity-95 transition"
+                onClick={() => router.push('/')}
+                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 transition"
               >
-                <Sparkles className="h-4 w-4" />
-                Generate with AI
+                <MessageSquare className="h-4 w-4" />
+                Ask CollegeGPT
               </button>
-              <button
-                onClick={() => router.push('/workflows')}
-                className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 transition"
-              >
-                <Plus className="h-4 w-4" />
-                New Workflow
-              </button>
+              {user?.role === 'admin' && (
+                <button
+                  onClick={() => router.push('/admin/documents')}
+                  className="flex items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800 transition"
+                >
+                  <FileText className="h-4 w-4 text-indigo-400" />
+                  Manage Documents
+                </button>
+              )}
             </div>
           </div>
 
           {/* Metric Grid */}
-          <MetricGrid stats={stats} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl border border-slate-800/80 bg-[#0d131f] p-5 shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">Indexed Knowledge</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <BookOpen className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-3 text-2xl font-bold text-white">{indexedDocs.length}</p>
+              <p className="mt-1 text-xs text-slate-500">Official college documents</p>
+            </div>
 
-          {/* Grid of Workflows & Executions */}
+            <div className="rounded-2xl border border-slate-800/80 bg-[#0d131f] p-5 shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">Vector Embeddings</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                  <Layers className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-3 text-2xl font-bold text-white">{totalChunks}</p>
+              <p className="mt-1 text-xs text-slate-500">768-dim pgvector chunks</p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800/80 bg-[#0d131f] p-5 shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">Consultations</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                  <MessageSquare className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-3 text-2xl font-bold text-white">{safeConvs.length}</p>
+              <p className="mt-1 text-xs text-slate-500">Saved student chats</p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800/80 bg-[#0d131f] p-5 shadow-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-400">RAG Engine Status</span>
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <CheckCircle2 className="h-4 w-4" />
+                </div>
+              </div>
+              <p className="mt-3 text-lg font-bold text-emerald-400">Operational</p>
+              <p className="mt-1 text-xs text-slate-500">Grounded & Verified citations</p>
+            </div>
+          </div>
+
+          {/* Quick Inquiry / Prompts Section */}
+          <div className="rounded-2xl border border-slate-800/80 bg-[#0d131f] p-5 shadow-lg">
+            <div className="flex items-center gap-2 border-b border-slate-800/80 pb-3">
+              <Sparkles className="h-5 w-5 text-indigo-400" />
+              <h3 className="font-semibold text-white">Ask Common Academic Questions</h3>
+            </div>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {quickPrompts.map((prompt, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => router.push('/')}
+                  className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/60 p-3.5 text-left text-xs font-medium text-slate-300 hover:border-indigo-500/40 hover:bg-indigo-950/20 hover:text-white transition group"
+                >
+                  <span className="truncate pr-2">{prompt}</span>
+                  <ArrowRight className="h-4 w-4 text-slate-500 group-hover:text-indigo-400 flex-shrink-0 transition" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Grid of Knowledge Documents & Recent Consultations */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            {/* Recent Workflows */}
+            {/* Active College Knowledge Base */}
             <div className="rounded-2xl border border-slate-800/80 bg-[#0d131f] p-5 shadow-lg">
               <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
                 <div className="flex items-center gap-2">
-                  <GitBranch className="h-5 w-5 text-indigo-400" />
-                  <h3 className="font-semibold text-white">Active Workflows</h3>
+                  <BookOpen className="h-5 w-5 text-indigo-400" />
+                  <h3 className="font-semibold text-white">College Knowledge Base</h3>
                 </div>
-                <button
-                  onClick={() => router.push('/workflows')}
-                  className="text-xs font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
-                >
-                  View All <ArrowRight className="h-3.5 w-3.5" />
-                </button>
+                {user?.role === 'admin' && (
+                  <button
+                    onClick={() => router.push('/admin/documents')}
+                    className="text-xs font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                  >
+                    Manage <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
 
               <div className="mt-4 space-y-3">
-                {recentWorkflows.length === 0 ? (
+                {safeDocs.length === 0 ? (
                   <div className="py-8 text-center text-xs text-slate-500">
-                    No workflows created yet. Click "Generate with AI" to build your first automation.
+                    No documents ingested yet. Administrators can upload handbooks and policies in Knowledge Ingestion.
                   </div>
                 ) : (
-                  recentWorkflows.map((wf) => (
+                  safeDocs.slice(0, 5).map((doc) => (
                     <div
-                      key={wf._id}
-                      onClick={() => router.push(`/workflows/${wf._id}`)}
-                      className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-800 bg-slate-900/50 p-3 hover:border-slate-700 hover:bg-slate-900 transition"
+                      key={doc.id}
+                      className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/50 p-3 hover:border-slate-700 transition"
                     >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-200 truncate">{wf.name}</p>
+                      <div className="min-w-0 pr-3">
+                        <p className="text-sm font-medium text-slate-200 truncate">{doc.title}</p>
                         <p className="text-xs text-slate-500">
-                          {wf.nodes?.length || 0} nodes • v{wf.version || 1}
+                          {doc.department || 'General'} • {doc.total_chunks || 0} chunks
                         </p>
                       </div>
                       <span
                         className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase ${
-                          wf.status === 'active'
+                          doc.status === 'INDEXED'
                             ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : 'bg-slate-800 text-slate-400'
+                            : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
                         }`}
                       >
-                        {wf.status}
+                        {doc.status}
                       </span>
                     </div>
                   ))
@@ -133,50 +247,40 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* AI Agent Activity Feed */}
+            {/* Recent Conversations */}
             <div className="rounded-2xl border border-slate-800/80 bg-[#0d131f] p-5 shadow-lg">
               <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
                 <div className="flex items-center gap-2">
-                  <Bot className="h-5 w-5 text-purple-400" />
-                  <h3 className="font-semibold text-white">Agentic Execution Pipeline</h3>
+                  <Clock className="h-5 w-5 text-purple-400" />
+                  <h3 className="font-semibold text-white">Recent Inquiries</h3>
                 </div>
                 <button
-                  onClick={() => router.push('/executions')}
+                  onClick={() => router.push('/')}
                   className="text-xs font-medium text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
                 >
-                  Live Runs <ArrowRight className="h-3.5 w-3.5" />
+                  Start New <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               </div>
 
               <div className="mt-4 space-y-3">
-                {recentExecutions.length === 0 ? (
+                {safeConvs.length === 0 ? (
                   <div className="py-8 text-center text-xs text-slate-500">
-                    No executions triggered yet. Trigger a workflow run to view real-time agent telemetry.
+                    No recent inquiries. Click "Ask CollegeGPT" above to start your first consultation.
                   </div>
                 ) : (
-                  recentExecutions.map((exec) => (
+                  safeConvs.slice(0, 5).map((conv) => (
                     <div
-                      key={exec._id}
-                      onClick={() => router.push(`/executions/${exec._id}`)}
+                      key={conv.id}
+                      onClick={() => router.push(`/?conversationId=${conv.id}`)}
                       className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-800 bg-slate-900/50 p-3 hover:border-slate-700 hover:bg-slate-900 transition"
                     >
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-slate-200 truncate">Run #{exec._id.slice(-6)}</p>
+                      <div className="min-w-0 pr-3">
+                        <p className="text-sm font-medium text-slate-200 truncate">{conv.title}</p>
                         <p className="text-xs text-slate-500">
-                          {exec.duration ? `${(exec.duration / 1000).toFixed(2)}s duration` : 'Running...'}
+                          {new Date(conv.updated_at || conv.created_at).toLocaleDateString()}
                         </p>
                       </div>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase ${
-                          exec.status === 'COMPLETED'
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : exec.status === 'FAILED'
-                            ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                            : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 animate-pulse'
-                        }`}
-                      >
-                        {exec.status}
-                      </span>
+                      <ArrowRight className="h-4 w-4 text-slate-500 flex-shrink-0" />
                     </div>
                   ))
                 )}

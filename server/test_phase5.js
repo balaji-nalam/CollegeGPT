@@ -29,9 +29,10 @@ async function runPhase5Tests() {
 
     // 2. Authentication & Admin Provisioning
     console.log('\n[2/10] Verifying Authentication & Role Isolation...');
+    const config = require('./src/config/env');
     const adminLogin = await axios.post(`${BASE_URL}/auth/login`, {
-      email: 'admin@college.edu',
-      password: 'CollegeAdminSecure2026!',
+      email: config.ADMIN_EMAIL || 'admin@college.edu',
+      password: config.ADMIN_PASSWORD || 'CollegeAdminSecure2026!',
     });
     adminToken = adminLogin.data.data.token;
     if (adminLogin.data.data.user.role !== 'admin') {

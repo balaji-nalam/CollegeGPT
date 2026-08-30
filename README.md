@@ -1,316 +1,275 @@
-# CollegeGPT — RAG-Based College Information Assistant
+# CollegeGPT
 
-> **Official, Grounded, and Zero-Hallucination Academic Intelligence Platform**
+## 1. Project Name
 
----
+CollegeGPT - RAG-Based College Information Assistant
 
-## 1. Problem Statement
+## 2. Problem Statement
 
-College students and administrative staff regularly struggle to navigate dense academic handbooks, multi-page syllabi, examination grading scales, attendance condonation criteria, and complex fee refund policies. Traditional keyword search tools fail on natural language questions, while standard conversational chatbots frequently hallucinate non-existent rules, creating academic risk for students and liability for universities.
+Students often need information about college academics, policies, learning materials, attendance rules, and experiential learning content. That information may be distributed across several documents and difficult to search manually.
 
----
+CollegeGPT addresses this problem with a grounded Retrieval-Augmented Generation (RAG) architecture. Administrators can index official college documents, and authenticated users can ask natural-language questions answered from the retrieved document context with page-level source citations.
 
-## 2. Solution Overview
+## 3. Features
 
-**CollegeGPT** is a production-grade Retrieval-Augmented Generation (RAG) assistant designed specifically for higher education institutions. It connects directly to official college documents, vectorizes extracted text into high-dimensional semantic spaces via PostgreSQL + pgvector, retrieves verified context, and grounds Large Language Model responses with precise page and document citations.
+- AI-powered college information assistant
+- RAG-based question answering over indexed documents
+- PostgreSQL with pgvector similarity retrieval
+- Grounded answers with page-level source citations
+- Multi-document knowledge base
+- Semantic retrieval and relevance filtering
+- Out-of-knowledge-base refusal instead of fabricated answers
+- JWT authentication and protected chat API
+- Student registration with protected administrative provisioning
+- Conversation history and per-user conversation access control
+- Responsive Next.js interface
+- Document upload, processing, indexing, status, reprocessing, and deletion
+- Admin document management
+- Markdown and code response rendering
+- Citation and source inspector in the chat experience
+- Prompt-injection defense testing
 
-If a question cannot be answered directly from the indexed college knowledge base, the assistant explicitly and safely refuses to answer rather than fabricating false information.
+Potential future ideas are listed separately in Section 15 and are not represented as implemented features.
 
----
+## 4. Technology Stack
 
-## 3. Core Features
+### Frontend
 
-- **Grounded Academic QA:** Answers inquiries on attendance requirements, grading formulas, examination rules, and fee refunds with exact citations.
-- **Strict Anti-Hallucination Guardrails:** Enforces similarity thresholds; queries without qualifying context receive clear, honest refusals without LLM speculation.
-- **Prompt-Injection Defense:** Treats all user queries and retrieved context as untrusted input, neutralizing jailbreak attempts and system prompt extraction attacks.
-- **Admin Document Knowledge Portal:** Administrative UI for uploading, inspecting, reprocessing, and deleting official PDFs and handbooks.
-- **Document Chunking & Vector Ingestion:** 700-character semantic chunking with 100-character overlap and sentence boundary preservation.
-- **Interactive Citation Inspector:** Students can click citations underneath assistant answers to view the source document, page number, similarity score, and relevant excerpt.
-- **Role-Based Access Control (RBAC):** Strict separation between student registration and administrative knowledge ingestion.
-- **Cross-User Privacy Isolation:** User conversation threads and message history are cryptographically isolated per student.
-- **Zero-Dep & Production Agility:** Operates seamlessly on Supabase PostgreSQL + pgvector + Supabase Storage in production, with an automated in-memory vector fallback for rapid offline development.
+- Next.js 14
+- React 18
+- Tailwind CSS
+- Axios
+- Zustand
+- Lucide React
+- Socket.IO client
+- React Flow (`@xyflow/react`)
 
----
+### Backend
 
-## 4. Mandatory RAG Pipeline
+- Node.js
+- Express.js
+- JSON Web Tokens (`jsonwebtoken`)
+- `bcryptjs`
+- `express-validator`
+- Multer for file uploads
+- Helmet, CORS, compression, and Morgan
+- Socket.IO
 
-```
-College Documents (PDF / TXT)
-          ↓
-   Text Extraction (Page-by-page)
-          ↓
-   Text Cleaning & Normalization
-          ↓
-   Chunking (700 chars / 100 overlap)
-          ↓
-   Embeddings Generation (text-embedding-004 / 768-dim)
-          ↓
-   PostgreSQL + pgvector (HNSW Indexing)
-          ↓
-[ Student Natural Language Query ]
-          ↓
-   Query Embedding (768-dim)
-          ↓
-   Cosine Similarity Search (HNSW <=> Index)
-          ↓
-   Relevance Threshold Filtering & Context Construction
-          ↓
-   Grounded LLM Prompt (Gemini / OpenRouter)
-          ↓
-   Grounded Answer + Clickable Page Citations
-```
+### Database and Storage
 
----
+- PostgreSQL
+- Supabase PostgreSQL and Storage configuration
+- pgvector for embedding similarity search
 
-## 5. Technology Stack
+### AI
 
-- **Frontend:** Next.js 14, React 18, Tailwind CSS, Lucide Icons, Axios, Zustand
-- **Backend:** Node.js, Express.js, JWT, Bcryptjs, Multer, Helmet, CORS
-- **Vector Database:** PostgreSQL 16 + `pgvector` (`vector(768)` with HNSW index `vector_cosine_ops`)
-- **Document Storage:** Supabase Storage (Production) / Local Disk (Development)
-- **AI Models:** Google `text-embedding-004` (768 dim), Google Gemini 1.5 Flash / OpenRouter LLMs
+- Google Gemini for grounded answer generation
+- Google `text-embedding-004` for 768-dimensional embeddings
+- Optional OpenRouter configuration supported by the backend service
 
----
+## 5. RAG Architecture
 
-## 6. Database Schema (PostgreSQL + pgvector)
-
-```sql
--- 1. Profiles & RBAC
-CREATE TABLE profiles (
-  id UUID PRIMARY KEY,
-  name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  role VARCHAR(50) DEFAULT 'student' CHECK (role IN ('student', 'admin')),
-  department VARCHAR(100),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 2. Documents
-CREATE TABLE documents (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title VARCHAR(255) NOT NULL,
-  description TEXT,
-  category VARCHAR(100) DEFAULT 'General',
-  department VARCHAR(100) DEFAULT 'General',
-  academic_year VARCHAR(50) DEFAULT '2025-2026',
-  document_type VARCHAR(100) DEFAULT 'Handbook',
-  filename VARCHAR(255) NOT NULL,
-  file_path TEXT NOT NULL,
-  file_size BIGINT NOT NULL,
-  mime_type VARCHAR(100) NOT NULL,
-  status VARCHAR(50) DEFAULT 'UPLOADED' CHECK (status IN ('UPLOADED', 'PROCESSING', 'INDEXED', 'FAILED', 'ARCHIVED')),
-  error_message TEXT,
-  total_pages INT DEFAULT 0,
-  total_chunks INT DEFAULT 0,
-  uploaded_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 3. Document Versions
-CREATE TABLE document_versions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-  version_number INT NOT NULL DEFAULT 1,
-  file_path TEXT NOT NULL,
-  file_size BIGINT NOT NULL,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 4. Document Chunks & High-Dimensional Vectors
-CREATE TABLE document_chunks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  document_id UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
-  version_id UUID REFERENCES document_versions(id) ON DELETE CASCADE,
-  chunk_index INT NOT NULL,
-  page_number INT NOT NULL DEFAULT 1,
-  content TEXT NOT NULL,
-  character_count INT NOT NULL,
-  embedding vector(768) NOT NULL,
-  metadata JSONB DEFAULT '{}',
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- HNSW Vector Cosine Index
-CREATE INDEX document_chunks_embedding_hnsw_idx 
-ON document_chunks 
-USING hnsw (embedding vector_cosine_ops)
-WITH (m = 16, ef_construction = 64);
-
--- 5. Conversations & Messages
-CREATE TABLE conversations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  title VARCHAR(255) DEFAULT 'New Conversation',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE messages (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-  sender VARCHAR(50) NOT NULL CHECK (sender IN ('user', 'assistant', 'system')),
-  content TEXT NOT NULL,
-  is_fallback BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- 6. Grounded Message Sources
-CREATE TABLE message_sources (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  message_id UUID NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
-  document_id UUID REFERENCES documents(id) ON DELETE SET NULL,
-  chunk_id UUID REFERENCES document_chunks(id) ON DELETE SET NULL,
-  document_title VARCHAR(255) NOT NULL,
-  page_number INT NOT NULL DEFAULT 1,
-  similarity_score FLOAT NOT NULL DEFAULT 0.0,
-  snippet TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+```text
+User Question
+      |
+Authentication
+      |
+Query Processing
+      |
+Embedding Generation
+      |
+pgvector Similarity Search
+      |
+Relevance Filtering
+      |
+Context Construction
+      |
+Grounded LLM Response
+      |
+Page-level Citations
 ```
 
----
+Documents are uploaded and processed page by page. Extracted text is chunked, embedded, and stored with document and page metadata. An authenticated question is embedded and compared with indexed chunks. Relevant chunks are assembled into bounded context for the language model, and the response includes the retrieved source metadata.
 
-## 7. Local Quickstart Setup
+When relevant information cannot be found in the college knowledge base, the system is designed to refuse the request rather than invent an answer.
+
+## 6. Knowledge Base
+
+The following documents were present in the live verification database at the time of testing:
+
+- `WEEK - 1 EXPERIENTIAL LEARNING`
+- `Official Academic Handbook 2026`
+
+The database connection and document contents are environment-specific and are not included in this repository documentation.
+
+## 7. Screenshots
+
+Add project screenshots to a submission media folder when available:
+
+- Login Page
+- CollegeGPT Chat Interface
+- Grounded Answer with Citations
+- Experiential Learning Query
+- Document Management
+- Dashboard
+
+No screenshot files are fabricated or referenced here because none were found in the repository during preparation.
+
+## 8. Live Demo
+
+Frontend: [TO BE DEPLOYED]
+
+Backend: [TO BE DEPLOYED]
+
+## 9. Backend
+
+The backend is an Express API in `server/`. Authentication routes provide student registration, login, and the authenticated profile endpoint. Protected routes require a JWT bearer token. Administrative document operations require the appropriate role, while chat and conversation routes require authentication.
+
+The chat endpoint is `POST /api/chat`. It receives a question and optionally a conversation ID, executes the existing RAG pipeline, persists the exchange, and returns the answer, support decision, and source records. The complete endpoint list is documented in [API.md](API.md).
+
+## 10. Setup Instructions
 
 ### Prerequisites
-- Node.js (v18+)
-- PostgreSQL (v15+) with `pgvector` (optional; zero-dep fallback activates automatically if `DATABASE_URL` is omitted)
 
-### Step 1: Clone and Configure Backend
-```bash
+- Node.js 18 or newer
+- A PostgreSQL database with pgvector for persistent vector retrieval
+- Credentials for the configured AI and storage providers
+
+### 1. Clone the repository
+
+```bat
+git clone <repository-url>
+cd "project AI"
+```
+
+### 2. Install frontend dependencies
+
+```bat
+cd client
+npm install
+```
+
+### 3. Install backend dependencies
+
+```bat
+cd ..\server
+npm install
+```
+
+### 4. Configure environment variables
+
+From the repository root, copy the template and provide your own values:
+
+```bat
+copy .env.example server\.env
+```
+
+The backend loads `server/.env`. Set the database, JWT, administrator, AI, and storage values required for the environment. Do not commit the resulting `.env` file.
+
+### 5. Start the backend
+
+```bat
 cd server
-cp .env.example .env
-npm install
-```
-
-### Step 2: Seed Administrator Account
-```bash
-npm run seed:admin
-# Default Admin credentials: admin@college.edu / CollegeAdminSecure2026!
-```
-
-### Step 3: Start Backend Server
-```bash
 npm run dev
-# Running on http://localhost:5000
 ```
 
-### Step 4: Start Frontend Client
-```bash
-cd ../client
-npm install
+The backend defaults to port `5000`.
+
+### 6. Start the frontend
+
+In a second terminal:
+
+```bat
+cd client
 npm run dev
-# Accessible at http://localhost:3000
 ```
 
----
+The frontend defaults to port `3000`. The available package scripts are `dev`, `build`, `start`, and `lint` in `client/package.json`; the backend scripts are listed in `server/package.json`.
 
-## 8. Environment Variables
+## 11. Environment Variables
 
-| Variable | Description | Default / Example |
-| :--- | :--- | :--- |
-| `NODE_ENV` | Environment Mode | `development` / `production` |
-| `PORT` | Backend HTTP Port | `5000` |
-| `CLIENT_URL` | Frontend Origin for CORS | `http://localhost:3000` |
-| `DATABASE_URL` | PostgreSQL Connection URI with pgvector | `postgresql://postgres:...` |
-| `JWT_SECRET` | Secret token signing key | `[Min 32 characters]` |
-| `EMBEDDING_PROVIDER` | Vector Embedding Provider | `google` |
-| `EMBEDDING_MODEL` | Embedding Model Name | `text-embedding-004` |
-| `EMBEDDING_DIMENSION`| Embedding Vector Length | `768` |
-| `TOP_K` | Number of chunks retrieved per query | `5` |
-| `SIMILARITY_THRESHOLD`| Cosine similarity cutoff | `0.15` |
-| `MAX_CONTEXT_CHARS` | Upper bound on prompt context | `4000` |
-| `GEMINI_API_KEY` | Google Gemini API Key | `AIzaSy...` |
-| `OPENROUTER_API_KEY`| OpenRouter API Key | `sk-or-v1-...` |
-| `STORAGE_PROVIDER` | Document Storage Adapter | `local` / `supabase` |
-| `SUPABASE_URL` | Supabase Project URL | `https://xyz.supabase.co` |
-| `SUPABASE_KEY` | Supabase Service Role Key | `[Server-Side Key]` |
-| `SUPABASE_BUCKET` | Supabase Storage Bucket | `collegegpt-documents` |
+Copy `.env.example` to `server/.env` and provide environment-specific values. Variable names used by the project are:
 
----
-
-## 9. Comprehensive API Reference
-
-### Authentication
-- `POST /api/auth/register` — Public Student Registration (strictly enforces student role)
-- `POST /api/auth/login` — Authenticate and receive signed JWT
-- `GET /api/auth/me` — Retrieve authenticated user profile
-
-### Document Knowledge Base (Admin Only)
-- `POST /api/documents` — Upload PDF/TXT and trigger background chunking + vectorization
-- `GET /api/documents` — List documents with category, department, and status filters
-- `GET /api/documents/:id` — Retrieve document details
-- `GET /api/documents/:id/status` — Live status poll (`UPLOADED`, `PROCESSING`, `INDEXED`, `FAILED`)
-- `PATCH /api/documents/:id` — Update document metadata
-- `POST /api/documents/:id/reprocess` — Re-extract text, re-chunk, and re-embed
-- `DELETE /api/documents/:id` — Permanently purge document and cascade-delete vector chunks
-
-### Student Chat & RAG
-- `POST /api/chat` — Submit natural language question; returns grounded answer with page citations
-- `GET /api/conversations` — List authenticated student's conversation threads
-- `GET /api/conversations/:id` — Retrieve conversation message history with citations
-- `DELETE /api/conversations/:id` — Delete conversation thread
-
-### System Health
-- `GET /api/health` — Diagnostics reporting database type, pgvector status, and storage configuration
-
----
-
-## 10. Automated Testing
-
-All 4 test suites validate 100% of functional, security, and quality requirements:
-
-```bash
-# Run Phase 2 Foundation & Auth tests (6 tests)
-node test_phase2.js
-
-# Run Phase 3 Document Ingestion & RAG Indexing tests (27 tests)
-node test_phase3.js
-
-# Run Phase 4 RAG Question Answering & Chat tests (30 tests)
-node test_phase4.js
-
-# Run Phase 5 Production Readiness & Quality Benchmark (10 tests)
-node test_phase5.js
+```text
+NODE_ENV
+PORT
+CLIENT_URL
+DATABASE_URL
+JWT_SECRET
+JWT_EXPIRES_IN
+ADMIN_NAME
+ADMIN_EMAIL
+ADMIN_PASSWORD
+EMBEDDING_PROVIDER
+EMBEDDING_MODEL
+EMBEDDING_DIMENSION
+CHUNK_SIZE
+CHUNK_OVERLAP
+MAX_FILE_SIZE_MB
+TOP_K
+SIMILARITY_THRESHOLD
+MAX_CONTEXT_CHARS
+GEMINI_API_KEY
+OPENROUTER_API_KEY
+STORAGE_PROVIDER
+UPLOAD_DIR
+SUPABASE_URL
+SUPABASE_KEY
+SUPABASE_BUCKET
+NEXT_PUBLIC_API_URL
 ```
 
----
+No secret values belong in `.env.example` or in source control.
 
-## 11. Production Deployment
+## 12. Testing & Verification
 
-### Frontend (Vercel)
-- Framework Preset: **Next.js**
-- Root Directory: `client`
-- Environment Variables: `NEXT_PUBLIC_API_URL=https://your-backend.onrender.com/api`
+The completed verification included:
 
-### Backend (Render)
-- Environment: **Node**
-- Root Directory: `server`
-- Build Command: `npm install`
-- Start Command: `npm start`
-- Environment Variables: `NODE_ENV=production`, `DATABASE_URL=...`, `JWT_SECRET=...`, `GEMINI_API_KEY=...`, `STORAGE_PROVIDER=supabase`
+- Frontend production build passed
+- Administrator authentication verified
+- Protected API access verified
+- Live `POST /api/chat` RAG requests verified
+- Grounded citations and page metadata verified
+- Out-of-knowledge-base refusal verified
+- Prompt-injection test verified with no secret disclosure
+- Phase 4: 30/30 tests passed
+- Phase 5: all production-readiness tests passed
 
-### Database & Storage (Supabase)
-- Enable `pgvector` extension: `CREATE EXTENSION IF NOT EXISTS vector;`
-- Execute [server/src/database/schema.sql](file:///c:/Users/nalam/Desktop/project%20AI/server/src/database/schema.sql)
-- Create private bucket: `collegegpt-documents`
+## 13. Project Structure
 
----
+```text
+project AI/
+|-- client/
+|   |-- package.json
+|   `-- src/
+|-- server/
+|   |-- package.json
+|   `-- src/
+|-- API.md
+|-- ARCHITECTURE.md
+|-- DEPLOYMENT.md
+|-- PROJECT_AUDIT.md
+|-- README.md
+|-- specs.md
+|-- .env.example
+`-- .gitignore
+```
 
-## 12. Security & Compliance Notes
+`client/` contains the Next.js frontend and user interface. `server/` contains the Express API, authentication, document processing, vector retrieval, RAG services, and database integration.
 
-1. **No Frontend Secrets:** Supabase service-role keys and LLM API keys are strictly confined to the backend server.
-2. **Path Traversal Prevention:** Files are written to server-generated unique paths with sanitization.
-3. **Privilege Escalation Defense:** Public registration endpoints ignore client-supplied roles and force `student`.
-4. **Prompt-Injection Neutralization:** Grounded prompts isolate retrieved text within XML/bracket boundaries and instruct the model to disregard embedded commands.
+## 14. Security
 
----
+- Secrets are supplied through environment variables.
+- Local `.env` files are excluded from Git.
+- JWT authentication protects private routes.
+- Administrative document operations use role protection.
+- Conversation access is checked against the authenticated user.
+- Prompt-injection and unsupported-question behavior were tested through the live API.
+- Credentials and access tokens are not committed to the repository.
 
-## 13. Deployment URLs & Demo
+## 15. Future Improvements
 
-- **Live Application Demo:** `https://collegegpt.vercel.app` *(Placeholder for deployment)*
-- **Production API Endpoint:** `https://collegegpt-api.onrender.com/api` *(Placeholder for deployment)*
+- Deploy the frontend and backend with production-managed environment variables.
+- Add automated CI checks for builds, tests, and secret scanning.
+- Add a curated screenshot set and a hosted demo link for submission.
+- Expand document administration and observability as the knowledge base grows.

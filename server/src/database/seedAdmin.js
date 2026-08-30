@@ -15,13 +15,19 @@ async function seedAdmin() {
   try {
     const existing = await query('SELECT id, email, role FROM profiles WHERE email = $1', [adminEmail]);
 
-    if (existing.rows.length > 0) {
-      logger.info(`Admin account already provisioned: ${adminEmail} (Role: ${existing.rows[0].role})`);
-      return existing.rows[0];
-    }
-
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(adminPassword, salt);
+
+    if (existing.rows.length > 0) {
+      await query(
+        `UPDATE profiles
+         SET password_hash = $1, role = 'admin', name = $2, updated_at = NOW()
+         WHERE email = $3`,
+        [passwordHash, adminName, adminEmail]
+      );
+      logger.info(`Admin account credentials synchronized for: ${adminEmail}`);
+      return existing.rows[0];
+    }
 
     const result = await query(
       `INSERT INTO profiles (name, email, password_hash, role, department)

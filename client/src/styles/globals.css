@@ -2,46 +2,142 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg-primary: #060b14;
+  --bg-secondary: #0b1220;
+  --bg-tertiary: #111b2d;
+  --panel: rgba(15, 23, 42, 0.74);
+  --panel-strong: rgba(15, 23, 42, 0.9);
+  --panel-soft: rgba(30, 41, 59, 0.58);
+  --line: rgba(148, 163, 184, 0.16);
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --primary: #7c8cff;
+  --primary-strong: #5b6ef4;
+  --primary-soft: rgba(124, 140, 255, 0.12);
+  --cyan: #5eead4;
+  --shadow: 0 20px 50px rgba(9, 13, 22, 0.7);
+  --font-sans: 'Inter', 'Segoe UI', sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', sans-serif;
+}
+
 @layer base {
+  html {
+    background: var(--bg-primary);
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-[#080c14] text-slate-100 antialiased selection:bg-indigo-500 selection:text-white font-sans;
+    @apply antialiased text-slate-100 selection:bg-indigo-500 selection:text-white;
+    font-family: var(--font-sans);
     min-height: 100vh;
+    background:
+      radial-gradient(circle at top left, rgba(91, 110, 244, 0.25), transparent 24%),
+      radial-gradient(circle at top right, rgba(94, 234, 212, 0.1), transparent 18%),
+      linear-gradient(180deg, #070b13 0%, #0a0f1a 100%);
+    color: var(--text);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+    letter-spacing: -0.04em;
+  }
+
+  button, input, textarea, select {
+    -webkit-tap-highlight-color: transparent;
+    font-family: var(--font-sans);
   }
 }
 
-/* Custom modern scrollbars */
+@layer components {
+  .surface-card {
+    @apply rounded-2xl border border-slate-800/80 bg-slate-900/55 shadow-xl shadow-slate-950/20 backdrop-blur-xl;
+  }
+
+  .field-control {
+    @apply w-full rounded-xl border border-slate-800 bg-slate-950/70 px-3.5 py-2.5 text-sm text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/15;
+  }
+
+  .soft-grid {
+    background-image: linear-gradient(rgba(99,102,241,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .premium-button {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-400/20 bg-gradient-to-r from-indigo-600 to-indigo-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-indigo-500/35;
+  }
+
+  .glass-panel {
+    background: rgba(15, 23, 42, 0.72);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    box-shadow: var(--shadow);
+  }
+
+  .glass-card {
+    background: rgba(15, 23, 42, 0.58);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+  }
+
+  .login-page {
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: hidden;
+    background: #000;
+  }
+
+  .login-page::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.6);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .login-bg-video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    z-index: 0;
+    filter: saturate(1.25) contrast(1.08);
+  }
+
+  .login-content {
+    position: relative;
+    z-index: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-bg-video {
+    display: none;
+  }
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0b1120;
+  background: rgba(15, 23, 42, 0.7);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 9999px;
+  background: linear-gradient(180deg, rgba(124, 140, 255, 0.75), rgba(94, 234, 212, 0.8));
+  border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: linear-gradient(180deg, rgba(124, 140, 255, 0.95), rgba(94, 234, 212, 0.9));
 }
 
-/* Glassmorphism utility */
-.glass-panel {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(51, 65, 85, 0.5);
-}
-
-.glass-card {
-  background: rgba(30, 41, 59, 0.45);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-/* React Flow styling overrides */
 .react-flow__renderer {
   background: #080c14 !important;
 }

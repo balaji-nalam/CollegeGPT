@@ -131,6 +131,18 @@ function executeInMemoryQuery(text, params = []) {
     return { rows: [profile], rowCount: 1 };
   }
 
+  // UPDATE profiles password_hash / credentials
+  if (lower.startsWith('update profiles') && lower.includes('password_hash')) {
+    const newHash = params[0];
+    const email = (params[2] || params[1] || '').toLowerCase();
+    const profile = Array.from(inMemoryStore.profiles.values()).find((p) => p.email.toLowerCase() === email);
+    if (profile) {
+      profile.password_hash = newHash;
+      profile.updated_at = new Date();
+    }
+    return { rows: profile ? [profile] : [], rowCount: profile ? 1 : 0 };
+  }
+
   // UPDATE profiles last_login
   if (lower.startsWith('update profiles') && lower.includes('last_login')) {
     const id = params[1] || params[0];

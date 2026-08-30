@@ -21,10 +21,11 @@ async function runPhase4Tests() {
 
   try {
     // 0. Setup: Authenticate Accounts
+    const config = require('./src/config/env');
     console.log('[Setup 1/2] Authenticating Admin and 2 Independent Students...');
     const adminRes = await axios.post(`${BASE_URL}/auth/login`, {
-      email: 'admin@college.edu',
-      password: 'CollegeAdminSecure2026!',
+      email: config.ADMIN_EMAIL || 'admin@college.edu',
+      password: config.ADMIN_PASSWORD || 'CollegeAdminSecure2026!',
     });
     adminToken = adminRes.data.data.token;
 

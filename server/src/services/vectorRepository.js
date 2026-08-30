@@ -60,6 +60,55 @@ const vectorRepository = {
     }
   },
 
+  // Get all indexed chunks for a document (ordered by chunk_index)
+  getChunksByDocumentId: async (documentId) => {
+    if (isPostgresConnected()) {
+      const res = await query(`
+        SELECT
+          dc.id AS chunk_id,
+          dc.document_id,
+          dc.version_id,
+          dc.chunk_text,
+          dc.chunk_index,
+          dc.page_number,
+          dc.metadata,
+          d.title AS document_title,
+          d.category AS document_category,
+          d.department AS document_department,
+          1.0 AS similarity_score
+        FROM document_chunks dc
+        JOIN documents d ON d.id = dc.document_id
+        WHERE dc.document_id = $1 AND d.status = 'INDEXED'
+        ORDER BY dc.chunk_index ASC
+      `, [documentId]);
+      return res.rows;
+    }
+
+    const results = [];
+    for (const chunk of inMemoryStore.document_chunks.values()) {
+      if (chunk.document_id === documentId) {
+        const doc = inMemoryStore.documents.get(chunk.document_id);
+        if (doc && doc.status === 'INDEXED') {
+          results.push({
+            chunk_id: chunk.id,
+            document_id: chunk.document_id,
+            version_id: chunk.version_id,
+            chunk_text: chunk.chunk_text,
+            chunk_index: chunk.chunk_index,
+            page_number: chunk.page_number,
+            metadata: chunk.metadata,
+            document_title: doc.title,
+            document_category: doc.category,
+            document_department: doc.department,
+            similarity_score: 1.0,
+          });
+        }
+      }
+    }
+    results.sort((a, b) => (a.chunk_index || 0) - (b.chunk_index || 0));
+    return results;
+  },
+
   // Semantic Similarity Search across INDEXED document chunks
   searchSimilarChunks: async (queryEmbedding, options = {}) => {
     const topK = options.topK || config.TOP_K || 5;
@@ -70,7 +119,7 @@ const vectorRepository = {
     if (isPostgresConnected()) {
       const vectorStr = `[${queryEmbedding.join(',')}]`;
       let sql = `
-        SELECT 
+        SELECT
           dc.id AS chunk_id,
           dc.document_id,
           dc.version_id,

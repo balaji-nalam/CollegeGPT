@@ -41,6 +41,8 @@ export default function AdminDocumentsPage() {
   const [academicYear, setAcademicYear] = useState('2025-2026');
   const [documentType, setDocumentType] = useState('Handbook');
   const [selectedFile, setSelectedFile] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const fetchDocuments = async () => {
     try {
@@ -129,18 +131,26 @@ export default function AdminDocumentsPage() {
   };
 
   const handleDelete = async (docId, docTitle) => {
-    if (!window.confirm(`Are you sure you want to permanently delete "${docTitle}" and its vector chunks?`)) {
-      return;
-    }
-
     try {
       setError(null);
       await api.delete(`/documents/${docId}`);
       setSuccessMsg(`Deleted "${docTitle}" successfully`);
       fetchDocuments();
+      setDeleteTarget(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete document');
     }
+  };
+
+  const selectFile = (file) => {
+    if (!file) return;
+    if (!/\.(pdf|txt)$/i.test(file.name)) {
+      setError('Please choose a PDF or text document.');
+      return;
+    }
+    setError(null);
+    setSelectedFile(file);
+    if (!title) setTitle(file.name.replace(/\.[^.]+$/, ''));
   };
 
   // Compute Stats
@@ -364,14 +374,12 @@ export default function AdminDocumentsPage() {
                   <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
                     Select File (.pdf, .txt) *
                   </label>
-                  <input
-                    id="doc-file-input"
-                    type="file"
-                    required
-                    accept=".pdf,.txt"
-                    onChange={(e) => setSelectedFile(e.target.files[0])}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950/70 border border-slate-800 text-slate-300 text-xs file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-500/20 file:text-indigo-300 hover:file:bg-indigo-500/30"
-                  />
+                  <label onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={(e) => { e.preventDefault(); setIsDragging(false); selectFile(e.dataTransfer.files[0]); }} className={`flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-3 text-center transition ${isDragging ? 'border-indigo-400 bg-indigo-500/10' : 'border-slate-700 bg-slate-950/50 hover:border-indigo-500/60'}`}>
+                    <Upload className="mb-1 h-4 w-4 text-indigo-400" />
+                    <span className="text-xs font-medium text-slate-300">{selectedFile ? selectedFile.name : 'Drop PDF or TXT here'}</span>
+                    <span className="mt-1 text-[10px] text-slate-500">or browse · max 25 MB</span>
+                    <input id="doc-file-input" type="file" required accept=".pdf,.txt" onChange={(e) => selectFile(e.target.files[0])} className="sr-only" />
+                  </label>
                 </div>
               </div>
 
@@ -545,7 +553,7 @@ export default function AdminDocumentsPage() {
                             </button>
 
                             <button
-                              onClick={() => handleDelete(doc.id, doc.title)}
+                              onClick={() => setDeleteTarget({ id: doc.id, title: doc.title })}
                               title="Delete Document & Chunks"
                               className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 transition-colors"
                             >
@@ -560,6 +568,16 @@ export default function AdminDocumentsPage() {
               </table>
             </div>
           </div>
+          {deleteTarget && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
+              <div className="surface-card w-full max-w-md p-6">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-400"><Trash2 className="h-5 w-5" /></div>
+                <h2 className="mt-4 text-lg font-semibold text-white">Delete document?</h2>
+                <p className="mt-2 text-sm leading-relaxed text-slate-400">This permanently removes <span className="font-medium text-slate-200">{deleteTarget.title}</span> and its indexed knowledge chunks.</p>
+                <div className="mt-6 flex justify-end gap-3"><button onClick={() => setDeleteTarget(null)} className="rounded-xl px-4 py-2 text-sm text-slate-300 hover:bg-slate-800">Cancel</button><button onClick={() => handleDelete(deleteTarget.id, deleteTarget.title)} className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-500">Delete permanently</button></div>
+              </div>
+            </div>
+          )}
         </div>
       </AppShell>
     </ProtectedRoute>

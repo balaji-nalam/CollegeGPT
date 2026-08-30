@@ -14,7 +14,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
-      const authStorage = localStorage.getItem('agentflow_auth');
+      const authStorage = localStorage.getItem('collegegpt_auth') || localStorage.getItem('agentflow_auth');
       if (authStorage) {
         try {
           const parsed = JSON.parse(authStorage);

@@ -31,10 +31,10 @@ export const useAuthStore = create(
         }
       },
 
-      register: async (name, email, password, role = 'operator') => {
+      register: async (name, email, password, department = 'General') => {
         set({ isLoading: true, error: null });
         try {
-          const response = await api.post('/auth/register', { name, email, password, role });
+          const response = await api.post('/auth/register', { name, email, password, department });
           const { user, token } = response.data.data;
           set({
             user,
@@ -82,7 +82,7 @@ export const useAuthStore = create(
       clearError: () => set({ error: null }),
     }),
     {
-      name: 'agentflow_auth',
+      name: 'collegegpt_auth',
       storage: createJSONStorage(() => (typeof window !== 'undefined' ? localStorage : {
         getItem: () => null,
         setItem: () => {},

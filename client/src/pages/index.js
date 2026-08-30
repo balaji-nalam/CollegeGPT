@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import AppShell from '../components/AppShell/AppShell';
 import ProtectedRoute from '../components/ProtectedRoute/ProtectedRoute';
+import AnswerRenderer from '../components/Chat/AnswerRenderer';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
 import {
@@ -19,13 +20,19 @@ import {
   ShieldAlert,
   Clock,
   Layers,
+  Copy,
+  Check,
+  ChevronDown,
+  Search,
+  FileText,
+  ShieldCheck,
 } from 'lucide-react';
 
 const SUGGESTED_QUERIES = [
   'What is the minimum attendance requirement?',
-  'How does the grading and CGPA scale work?',
-  'What is the refund policy for withdrawn admission?',
-  'What are the condonation rules for medical absence?',
+  'What is NumPy?',
+  'Give me the information from Week 1 Experiential Learning',
+  'What are the learning outcomes?',
 ];
 
 export default function StudentChatPage() {
@@ -37,6 +44,11 @@ export default function StudentChatPage() {
   const [loading, setLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [selectedSource, setSelectedSource] = useState(null);
+  const [conversationSearch, setConversationSearch] = useState('');
+  const [copiedMessage, setCopiedMessage] = useState(null);
+  const [sourcesOpen, setSourcesOpen] = useState({});
+  const [error, setError] = useState(null);
+  const [lastFailedQuestion, setLastFailedQuestion] = useState('');
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -98,14 +110,28 @@ export default function StudentChatPage() {
     }
   };
 
-  const handleSendMessage = async (e) => {
-    e?.preventDefault();
-    if (!inputText.trim() || loading) return;
+  const isSimpleGreeting = (value) => {
+    const normalized = value.trim().toLowerCase().replace(/[^a-z\s]/g, '');
+    const greetings = [
+      'hi',
+      'hello',
+      'hey',
+      'good morning',
+      'good afternoon',
+      'good evening',
+    ];
 
-    const question = inputText.trim();
+    return greetings.includes(normalized) || normalized.split(/\s+/).filter(Boolean).every((word) => ['hi', 'hello', 'hey', 'morning', 'afternoon', 'evening', 'good'].includes(word));
+  };
+
+  const sendQuestion = async (questionOverride) => {
+    const question = (questionOverride ?? inputText).trim();
+    if (!question || loading) return;
+
+    setError(null);
+    setLastFailedQuestion(question);
     setInputText('');
 
-    // Optimistically add user message
     const tempUserMsg = {
       id: `temp-${Date.now()}`,
       sender: 'user',
@@ -114,6 +140,21 @@ export default function StudentChatPage() {
     };
 
     setMessages((prev) => [...prev, tempUserMsg]);
+
+    if (isSimpleGreeting(question)) {
+      const greetingReply = {
+        id: `greeting-${Date.now()}`,
+        sender: 'assistant',
+        content: "Hi! I'm CollegeGPT. Ask me anything about your college documents, academic policies, courses, attendance, experiential learning, or other information available in the knowledge base.",
+        is_fallback: false,
+        sources: [],
+        created_at: new Date().toISOString(),
+      };
+
+      setMessages((prev) => [...prev, greetingReply]);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -140,10 +181,12 @@ export default function StudentChatPage() {
 
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err) {
+      const errorMessage = err.response?.data?.message || 'Sorry, something went wrong while fetching the answer.';
+      setError(errorMessage);
       const errorMsg = {
         id: `err-${Date.now()}`,
         sender: 'assistant',
-        content: err.response?.data?.message || 'Sorry, an error occurred while querying the knowledge base.',
+        content: errorMessage,
         is_fallback: true,
         sources: [],
         created_at: new Date().toISOString(),
@@ -154,12 +197,35 @@ export default function StudentChatPage() {
     }
   };
 
+  const handleSendMessage = async (e) => {
+    e?.preventDefault();
+    await sendQuestion();
+  };
+
+  const handleRetryQuestion = async () => {
+    if (!lastFailedQuestion) return;
+    setError(null);
+    await sendQuestion(lastFailedQuestion);
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
+
+  const copyAnswer = async (content, id) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedMessage(id);
+      setTimeout(() => setCopiedMessage(null), 1800);
+    } catch { /* Clipboard permission is optional; the response remains selectable. */ }
+  };
+
+  const filteredConversations = conversations.filter((conversation) =>
+    conversation.title?.toLowerCase().includes(conversationSearch.toLowerCase())
+  );
 
   return (
     <ProtectedRoute>
@@ -179,6 +245,10 @@ export default function StudentChatPage() {
                 <Plus className="w-4 h-4" />
                 New Consultation
               </button>
+              <label className="relative mt-3 block">
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
+                <input value={conversationSearch} onChange={(e) => setConversationSearch(e.target.value)} placeholder="Search consultations" className="w-full rounded-lg border border-slate-800 bg-slate-950/50 py-2 pl-8 pr-3 text-xs text-slate-200 outline-none focus:border-indigo-500" />
+              </label>
             </div>
 
             <div className="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar">
@@ -186,12 +256,12 @@ export default function StudentChatPage() {
                 Recent Conversations
               </div>
 
-              {conversations.length === 0 ? (
+              {filteredConversations.length === 0 ? (
                 <div className="p-4 text-center text-xs text-slate-500">
                   No conversation history yet. Start a new chat!
                 </div>
               ) : (
-                conversations.map((c) => (
+                filteredConversations.map((c) => (
                   <div
                     key={c.id}
                     onClick={() => loadConversationMessages(c.id)}
@@ -234,107 +304,184 @@ export default function StudentChatPage() {
             {/* Chat Messages Container */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar">
               {messages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center max-w-2xl mx-auto text-center space-y-6 py-12">
-                  <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 shadow-2xl shadow-indigo-500/10">
-                    <Bot className="w-10 h-10" />
+                <div className="h-full flex flex-col items-center justify-center max-w-3xl mx-auto text-center py-12">
+                  <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 shadow-lg shadow-indigo-500/10">
+                    <Bot className="h-8 w-8" />
                   </div>
 
-                  <div>
-                    <h2 className="text-2xl font-bold text-slate-100 tracking-tight">
-                      Welcome to CollegeGPT
+                  <div className="max-w-xl">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300">CollegeGPT</p>
+                    <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-50 sm:text-4xl">
+                      Your official college knowledge assistant.
                     </h2>
-                    <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
-                      Your official college assistant. Ask any question regarding academic syllabi, grading policies, attendance regulations, or fee structures.
+                    <p className="mt-4 text-sm leading-6 text-slate-400 sm:text-base">
+                      Ask about attendance, academic policies, outcomes, learning activities, and other official college information. Answers are grounded in uploaded college documents.
                     </p>
                   </div>
 
-                  {/* Suggested Prompts */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full pt-4">
+                  <div className="mt-8 grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
                     {SUGGESTED_QUERIES.map((query, idx) => (
                       <button
                         key={idx}
-                        onClick={() => {
-                          setInputText(query);
-                        }}
-                        className="flex items-start gap-2.5 p-3.5 rounded-xl bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 text-left text-xs text-slate-300 hover:text-indigo-200 hover:border-indigo-500/40 transition-all shadow-sm group"
+                        type="button"
+                        onClick={() => setInputText(query)}
+                        className="flex items-start gap-2.5 rounded-xl border border-slate-800 bg-slate-900/70 p-3.5 text-left text-sm text-slate-300 transition-colors hover:border-indigo-500/40 hover:bg-slate-800/80 hover:text-indigo-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                       >
-                        <Sparkles className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5 group-hover:scale-110 transition-transform" />
-                        <span>{query}</span>
+                        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-indigo-400" />
+                        <span className="leading-6">{query}</span>
                       </button>
                     ))}
                   </div>
                 </div>
               ) : (
-                messages.map((msg, index) => (
-                  <div
-                    key={msg.id || index}
-                    className={`flex items-start gap-3.5 ${
-                      msg.sender === 'user' ? 'justify-end' : 'justify-start'
-                    }`}
-                  >
-                    {msg.sender === 'assistant' && (
-                      <div className="p-2 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 flex-shrink-0 mt-0.5">
-                        <Bot className="w-5 h-5" />
-                      </div>
-                    )}
+                messages.map((msg, index) => {
+                  const isAssistant = msg.sender === 'assistant';
+                  const isUser = msg.sender === 'user';
 
+                  return (
                     <div
-                      className={`max-w-2xl rounded-2xl p-4 shadow-md ${
-                        msg.sender === 'user'
-                          ? 'bg-indigo-600 text-white ml-12 rounded-tr-sm'
-                          : 'bg-slate-900/80 border border-slate-800/80 text-slate-200 mr-12 rounded-tl-sm backdrop-blur-md'
-                      }`}
+                      key={msg.id || index}
+                      className={`flex items-start gap-3.5 ${isUser ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div className="text-sm leading-relaxed whitespace-pre-wrap">
-                        {msg.content}
+                      {isAssistant && (
+                        <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 shadow-sm">
+                          <Bot className="h-4 w-4" />
+                        </div>
+                      )}
+
+                      <div
+                        className={`w-full max-w-[820px] ${isUser ? 'ml-10' : 'mr-10'} ${isUser ? 'rounded-2xl bg-indigo-600/95 px-4 py-3 text-white shadow-lg shadow-indigo-900/20 sm:px-4 sm:py-3' : 'rounded-2xl border border-slate-800/80 bg-slate-900/80 px-4 py-3 text-slate-100 shadow-sm backdrop-blur-md sm:px-4 sm:py-4'}`}
+                      >
+                        {isAssistant ? (
+                          <div className="space-y-3">
+                            <AnswerRenderer content={msg.content} />
+
+                            <div className="flex items-center gap-2 border-t border-slate-800/80 pt-2">
+                              <button
+                                type="button"
+                                onClick={() => copyAnswer(msg.content, msg.id || index)}
+                                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                                title="Copy response"
+                                aria-label="Copy response"
+                              >
+                                {copiedMessage === (msg.id || index) ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                                {copiedMessage === (msg.id || index) ? 'Copied' : 'Copy'}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-sm leading-7 whitespace-pre-wrap break-words text-slate-50">
+                            {msg.content}
+                          </div>
+                        )}
+
+                        {isAssistant && msg.sources && msg.sources.length > 0 && (
+                          <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-slate-950/60 p-3 shadow-inner shadow-slate-950/30">
+                            <button
+                              type="button"
+                              onClick={() => setSourcesOpen((prev) => ({ ...prev, [msg.id || index]: !prev[msg.id || index] }))}
+                              aria-expanded={Boolean(sourcesOpen[msg.id || index])}
+                              className="flex w-full items-center justify-between gap-2 rounded-lg text-left transition-colors hover:text-indigo-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                            >
+                              <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-300">
+                                <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10">
+                                  <ShieldCheck className="h-3.5 w-3.5" />
+                                </span>
+                                <span>Grounded in official documents</span>
+                              </span>
+                              <span className="text-[11px] font-medium text-slate-300">
+                                {msg.sources.length} source{msg.sources.length !== 1 ? 's' : ''}
+                              </span>
+                            </button>
+
+                            {sourcesOpen[msg.id || index] && (
+                              <div className="mt-3 grid gap-2">
+                                {msg.sources.map((src, sIdx) => (
+                                  <button
+                                    key={sIdx}
+                                    type="button"
+                                    onClick={() => setSelectedSource(src)}
+                                    className="group w-full rounded-xl border border-slate-800 bg-slate-900/80 p-3 text-left transition-colors hover:border-indigo-500/40 hover:bg-indigo-500/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                                  >
+                                    <div className="flex items-start gap-3">
+                                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-indigo-500/20 bg-indigo-500/10 text-indigo-300">
+                                        <FileText className="h-4 w-4" />
+                                      </div>
+
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="min-w-0 flex-1">
+                                            <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
+                                              Document
+                                            </div>
+                                            <div className="mt-1 text-sm font-semibold text-slate-100 break-words leading-5">
+                                              {src.title}
+                                            </div>
+                                          </div>
+
+                                          <span className="shrink-0 rounded-full border border-slate-700 bg-slate-950/80 px-2 py-1 text-[10px] font-medium text-indigo-200">
+                                            Page {src.page || 1}
+                                          </span>
+                                        </div>
+
+                                        {src.similarity !== undefined && src.similarity !== null && (
+                                          <div className="mt-2 text-[10px] uppercase tracking-[0.12em] text-slate-400">
+                                            Similarity <span className="ml-1 text-emerald-300">{String(src.similarity)}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      {/* Source References Badges */}
-                      {msg.sender === 'assistant' && msg.sources && msg.sources.length > 0 && (
-                        <div className="mt-4 pt-3 border-t border-slate-800/80">
-                          <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1.5">
-                            <BookOpen className="w-3.5 h-3.5 text-indigo-400" />
-                            Grounded Sources ({msg.sources.length}):
-                          </div>
-
-                          <div className="flex flex-wrap gap-2">
-                            {msg.sources.map((src, sIdx) => (
-                              <button
-                                key={sIdx}
-                                onClick={() => setSelectedSource(src)}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/80 hover:bg-indigo-950/60 border border-slate-800 hover:border-indigo-500/40 text-xs text-indigo-300 transition-colors"
-                              >
-                                <span className="font-medium truncate max-w-[200px]">
-                                  {src.title}
-                                </span>
-                                <span className="text-slate-500">&bull;</span>
-                                <span className="font-mono text-slate-400">P. {src.page || 1}</span>
-                              </button>
-                            ))}
-                          </div>
+                      {isUser && (
+                        <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-slate-300">
+                          <User className="h-4 w-4" />
                         </div>
                       )}
                     </div>
+                  );
+                })
+              )}
 
-                    {msg.sender === 'user' && (
-                      <div className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 flex-shrink-0 mt-0.5">
-                        <User className="w-5 h-5" />
-                      </div>
-                    )}
+              {error && !loading && (
+                <div className="flex items-start gap-3.5">
+                  <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-rose-500/20 bg-rose-500/10 text-rose-300">
+                    <ShieldAlert className="h-4 w-4" />
                   </div>
-                ))
+                  <div className="max-w-[820px] rounded-2xl border border-rose-500/20 bg-slate-900/80 px-4 py-3 text-slate-100 shadow-sm">
+                    <div className="text-sm font-medium text-rose-200">We couldn’t load that answer.</div>
+                    <p className="mt-1 text-sm text-slate-300">{error}</p>
+                    <button
+                      type="button"
+                      onClick={handleRetryQuestion}
+                      className="mt-3 inline-flex items-center rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100 transition-colors hover:bg-rose-500/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                </div>
               )}
 
               {loading && (
                 <div className="flex items-start gap-3.5">
-                  <div className="p-2 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-400 flex-shrink-0 mt-0.5">
-                    <Bot className="w-5 h-5 animate-pulse" />
+                  <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-indigo-300">
+                    <Bot className="h-4 w-4" />
                   </div>
-                  <div className="rounded-2xl p-4 bg-slate-900/80 border border-slate-800/80 text-slate-400 rounded-tl-sm flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-indigo-500 animate-ping"></span>
-                    <span className="text-xs font-medium text-slate-400">
-                      Searching knowledge base and formulating grounded response...
-                    </span>
+                  <div className="rounded-2xl border border-slate-800/80 bg-slate-900/80 px-4 py-3 text-slate-100 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-slate-200">CollegeGPT is thinking</span>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-400" />
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-400 [animation-delay:120ms]" />
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-400 [animation-delay:240ms]" />
+                    </div>
                   </div>
                 </div>
               )}
@@ -346,23 +493,25 @@ export default function StudentChatPage() {
             <div className="p-4 border-t border-slate-800/80 bg-slate-950/90 backdrop-blur-xl">
               <form
                 onSubmit={handleSendMessage}
-                className="max-w-4xl mx-auto flex items-center gap-3 relative"
+                className="mx-auto flex max-w-4xl items-end gap-3"
               >
                 <textarea
                   rows={1}
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Ask a question about college guidelines, attendance, fees, syllabus... (Press Enter)"
-                  className="flex-1 px-4 py-3 rounded-xl bg-slate-900/90 border border-slate-800 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none max-h-32 custom-scrollbar shadow-inner"
+                  placeholder="Ask about your college documents..."
+                  aria-label="Message input"
+                  className="flex-1 resize-none rounded-2xl border border-slate-800 bg-slate-900/90 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 max-h-32 custom-scrollbar shadow-inner"
                 />
 
                 <button
                   type="submit"
                   disabled={loading || !inputText.trim()}
-                  className="p-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex-shrink-0"
+                  aria-label="Send message"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 transition-colors hover:bg-indigo-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  <Send className="w-4 h-4" />
+                  <Send className="h-4 w-4" />
                 </button>
               </form>
               <div className="text-center mt-2 text-[11px] text-slate-500">
@@ -389,22 +538,31 @@ export default function StudentChatPage() {
                 </button>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div>
-                  <div className="text-xs text-slate-400 font-medium">Source Document:</div>
-                  <div className="text-sm font-semibold text-slate-200">{selectedSource.title}</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Document</div>
+                  <div className="mt-2 text-sm font-semibold text-slate-100 break-words leading-6">{selectedSource.title}</div>
                 </div>
 
-                <div className="flex items-center gap-4 text-xs font-mono text-slate-400">
-                  <span>Page: <strong className="text-indigo-300">{selectedSource.page || 1}</strong></span>
-                  <span>Similarity: <strong className="text-emerald-400">{selectedSource.similarity || 'N/A'}</strong></span>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Page</div>
+                    <div className="mt-2 text-sm font-medium text-indigo-200">{selectedSource.page || 1}</div>
+                  </div>
+
+                  {selectedSource.similarity !== undefined && selectedSource.similarity !== null && (
+                    <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Similarity</div>
+                      <div className="mt-2 text-sm font-medium text-emerald-300">{String(selectedSource.similarity)}</div>
+                    </div>
+                  )}
                 </div>
 
                 {selectedSource.snippet && (
                   <div>
-                    <div className="text-xs text-slate-400 font-medium mb-1">Source Snippet:</div>
-                    <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 italic leading-relaxed">
-                      "{selectedSource.snippet}..."
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400 mb-2">Relevant passage</div>
+                    <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs leading-6 text-slate-300 italic break-words">
+                      “{selectedSource.snippet}”
                     </div>
                   </div>
                 )}
