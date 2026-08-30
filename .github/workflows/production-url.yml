@@ -1,9 +1,7 @@
-name: Set Production Deployment URL
+name: Sync Production Deployment URL
 
 on:
-  push:
-    branches:
-      - main
+  deployment_status:
   workflow_dispatch:
 
 permissions:
@@ -11,13 +9,54 @@ permissions:
   contents: read
 
 jobs:
-  production:
+  sync-production-url:
     runs-on: ubuntu-latest
-
-    environment:
-      name: Production
-      url: https://college-gpt-seven.vercel.app/
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'deployment_status' &&
+       github.event.deployment.environment == 'Production' &&
+       github.event.deployment_status.state == 'success' &&
+       github.event.deployment_status.description != 'CollegeGPT production URL sync')
 
     steps:
-      - name: Production deployment URL
-        run: echo "Production URL: https://college-gpt-seven.vercel.app/"
+      - name: Set the canonical production URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const productionUrl = 'https://college-gpt-seven.vercel.app/';
+            let deploymentId;
+
+            if (context.eventName === 'deployment_status') {
+              deploymentId = context.payload.deployment.id;
+            } else {
+              const deployments = await github.paginate(
+                github.rest.repos.listDeployments,
+                {
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  environment: 'Production',
+                  per_page: 100
+                }
+              );
+
+              if (!deployments.length) {
+                core.setFailed('No Production deployment was found.');
+                return;
+              }
+
+              deploymentId = deployments[0].id;
+            }
+
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deploymentId,
+              state: 'success',
+              environment: 'Production',
+              environment_url: productionUrl,
+              log_url: productionUrl,
+              description: 'CollegeGPT production URL sync',
+              auto_inactive: false
+            });
+
+            core.info(`Production deployment ${deploymentId} now points to ${productionUrl}`);
